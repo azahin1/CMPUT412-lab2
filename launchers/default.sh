@@ -13,8 +13,7 @@ dt-launchfile-init
 # NOTE: Use `dt-exec COMMAND` to run the main process (blocking process)
 
 # launching app
-sleep 5
-dt-exec rosrun camera get_camera.py
+dt-exec rosrun odometry odometry_node.py
 
 # ----------------------------------------------------------------------------
 # YOUR CODE ABOVE THIS LINE
