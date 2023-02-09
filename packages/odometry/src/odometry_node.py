@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from time import time
 import rospy
 from std_msgs.msg import Float32, Header
 from duckietown.dtros import DTROS, NodeType, TopicType, DTParam, ParamType
@@ -21,7 +20,10 @@ class OdometryNode(DTROS):
         # Get static parameters
         botName = os.environ['HOSTNAME']
         self.length = 0.05 # meters
-        self._radius = 0.0318 # meters
+        self.radius = 0.0318 # meters
+        self.init_ticks = [None, None] # initial ticks
+        self.distances = [None, None] # left and right distance
+        self.dist = 0.00
 
         # Subscribing to the wheel encoders
         self.sub_encoder_ticks_left = rospy.Subscriber(f"{botName}/left_wheel_encoder_node/tick", WheelEncoderStamped, self.cb_encoder_data, callback_args="left")
@@ -38,17 +40,36 @@ class OdometryNode(DTROS):
     def cb_encoder_data(self, msg, wheel):
         """ Update encoder distance information from ticks.
         """
-        print(f"{wheel:>5s} wheel: N = {msg.data} ticks")
         if wheel == "left":
-            self.pub_integrated_distance_left.publish(msg.data)
+            # self.pub_integrated_distance_left.publish(msg.data)
+            if self.init_ticks[0] is None:
+                self.init_ticks[0] = msg.data
+            self.distances[0] = self.calculate_distance(msg.data - self.init_ticks[0])
         elif wheel == "right":
-            self.pub_integrated_distance_right.publish(msg.data)
+            # self.pub_integrated_distance_right.publish(msg.data)
+            if self.init_ticks[1] is None:
+                self.init_ticks[1] = msg.data
+            self.distances[1] = self.calculate_distance(msg.data - self.init_ticks[1])
+
+        if self.distances[0] and self.distances[1]:
+            self.dist = sum(self.distances)/len(self.distances)
+        elif not self.distances[0]:
+            self.dist = self.distances[0]
+        elif not self.distances[1]:
+            self.dist = self.distances[1]
+        print(f"Distance: {self.dist}")
+
         
     def cb_executed_commands(self, msg):
         """ Use the executed commands to determine the direction of travel of each wheel.
         """
         print(f"==============\n{msg}\n==============")
         self.pub_executed_commands.publish(msg)
+
+    def calculate_distance(self, ticks):
+        '''Calculate distance travelled fromt icks
+        '''
+        return (2*ticks*np.pi/135)*self.radius
 
 if __name__ == '__main__':
     node = OdometryNode(node_name='my_odometry_node')
